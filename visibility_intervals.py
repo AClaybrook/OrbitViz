@@ -75,15 +75,15 @@ def evaluate_elevation(time, ephems, location):
     elevation = np.arctan2(r_rel[2], np.sqrt(r_rel[0]**2 + r_rel[1]**2))
     return elevation
 
-def evaluate(f, desired_value, *args, **kwargs):
-    return f(*args, **kwargs) - desired_value
+def evaluate(f, desired_value, *args):
+    return f(*args) - desired_value
 
 # # Boundary crossing function
 result = root_scalar(evaluate, bracket=[start_date, end_date], method='brentq')
 
 # # Initial search where the times sample frequently enough so that boundary crossing is not likely to be missed
-def initial_search(times, f, *args, **kwargs):
-    return [f(t, *args, **kwargs) for t in times]
+def initial_search(times, f, *args):
+    return [f(t, *args) for t in times]
 
 search_vals = initial_search(steps,evaluate_elevation, ephems=ephems, location=location)
 

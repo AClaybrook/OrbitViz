@@ -12,32 +12,33 @@ def find_crossing_bound_indices(values):
     crossing_indices = np.where((np.diff(signs) != 0))[0]
     return [(i, i+1) for i in crossing_indices]
 
-def find_crossing_bounds(times, values, desired_val):
+def find_crossing_bounds(times, values):
     """Given a list of values and a desired value, returns the indices of the values where the desired value is crossed"""
-    shifted_vals = values - desired_val
-    crossings_bound_indices = np.array(find_crossing_bound_indices(shifted_vals))
+    crossings_bound_indices = np.array(find_crossing_bound_indices(values))
     return [(times[a], times[b]) for a,b in crossings_bound_indices]
 
-def initial_search(times, f, *args, **kwargs):
+def initial_search(times, f, desired_val, *args):
     """Initial search where the times sample frequently enough so that boundary crossing is not likely to be missed"""
-    unit = f(times[0], *args, **kwargs)
-    return [f(t, *args, **kwargs).to_value() for t in times]*unit
+    unit = f(times[0], desired_val, *args)
+    return [f(t, desired_val, *args).to_value() for t in times]*unit
 
-def find_crossing(func, desired_val, start_time, end_time, *args, **kwargs):
+def find_crossing(func, desired_val, start_time, end_time, *args):
     """Finds the desired value boundary crossing time of a function of time."""
     # Use scipy optimize to find the boundary crossing times
     root = optimize.root_scalar(
-        lambda time: func(time, *args, **kwargs) - desired_val,
+        func,
+        args=(desired_val, *args),
         bracket=[start_time, end_time],
         method='brentq'  # Brent method is generally robust
     )
     return root.root  # return the time of the boundary crossing
 
-def find_crossings(func, desired_val, crossings_bounds, *args, **kwargs):
+def find_crossings(func, desired_val, crossings_bounds, *args):
     """Given a list of bounds, this finds the desired value crossing times a function of time."""
-    return [find_crossing(func, desired_val, start, end, *args, **kwargs) for start, end in crossings_bounds]
+    print(args)
+    return [find_crossing(func, desired_val, start, end, *args,) for start, end in crossings_bounds]
 
-def get_intervals(times, func, desired_val, crossings, *args, **kwargs):
+def get_intervals(times, func, desired_val, crossings, *args):
     # Add start and end bounds  mn
     if crossings:
         if crossings[0] != times[0]:
@@ -52,7 +53,7 @@ def get_intervals(times, func, desired_val, crossings, *args, **kwargs):
     neg = []
     for i in range(len(crossings) -1):
         mid_point = (crossings[i+1]- crossings[i]) / 2 + crossings[i]  # choosing a point between two roots
-        if func(mid_point,*args, **kwargs) - desired_val >= 0:
+        if func(mid_point, desired_val, *args)  >= 0:
             pos.append((crossings[i], crossings[i+1]))
         else:
             neg.append((crossings[i], crossings[i+1]))

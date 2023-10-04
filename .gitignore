@@ -1,4 +1,16 @@
+# Virtual Environment
 .venv
-.vs
+# Vscode
+.vscode
+
+# Python temporary files
 *.pyc
 *.prof
+
+# Data
+*.bsp
+data/tles/*
+
+# Databsae
+*.db
+*.sqlite
