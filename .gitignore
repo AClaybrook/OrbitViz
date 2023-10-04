@@ -9,7 +9,7 @@
 
 # Data
 *.bsp
-data/tles/*
+backend/data/tles/*
 
 # Databsae
 *.db
