@@ -1,5 +1,6 @@
 # Virtual Environment
-.venv
+*venv*
+
 # Vscode
 .vscode
 
@@ -14,3 +15,9 @@ backend/data/tles/*
 # Databsae
 *.db
 *.sqlite
+
+# pytest
+.pytest_cache
+
+# docs for now
+docs

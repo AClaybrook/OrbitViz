@@ -1,11 +1,18 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, Sequence
+from sqlalchemy import create_engine, Column, Integer, String, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sgp4.io import twoline2rv, compute_checksum
+from sgp4.io import twoline2rv
 from sgp4.earth_gravity import wgs72
 from typing import Union, Tuple
 import math
-from datetime import datetime, timedelta
+from contextlib import contextmanager
+from functools import wraps
+import sqlite3
+import os
+DATA_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_SQLITE_PATH = f"{DATA_DIR}/tles.sqlite"
+DB_PATH = f"sqlite:///{DB_SQLITE_PATH}"
+engine = create_engine(DB_PATH)
 
 Base = declarative_base()
 
@@ -36,38 +43,42 @@ class TLE(Base):
     
     @staticmethod
     def from_string(tle_string):
-        lines = tle_string.strip().split("\n")
-        if len(lines) != 3:
-            raise ValueError("TLE string must have exactly 3 lines")
-        
-        name = lines[0].strip()
-        line1 = lines[1].strip()
-        line2 = lines[2].strip()
+        try:
+            lines = tle_string.strip().split("\n")
+            if len(lines) != 3:
+                raise ValueError("TLE string must have exactly 3 lines")
 
-        satrec = twoline2rv(line1, line2, wgs72)
+            name = lines[0].strip()
+            line1 = lines[1].strip()
+            line2 = lines[2].strip()
 
-        # Creating a mapping of attribute names to their respective values
-        attributes = {
-            'satellite_number': satrec.satnum,
-            'name': name,
-            'classification': satrec.classification,
-            'international_designator': satrec.intldesg,
-            'epoch_year': satrec.epochyr,
-            'epoch_day': satrec.epochdays,
-            'first_time_derivative': satrec.ndot,
-            'second_time_derivative': satrec.nddot,
-            'bstar_drag_term': satrec.bstar,
-            'ephemeris_type': satrec.ephtype,
-            'element_number': satrec.elnum,
-            'inclination': satrec.inclo,
-            'right_ascension': satrec.nodeo,
-            'eccentricity': satrec.ecco,
-            'argument_of_perigee': satrec.argpo,
-            'mean_anomaly': satrec.mo,
-            'mean_motion': satrec.no_kozai,
-            'revolution_number': satrec.revnum
-        }
-        return TLE(**attributes)
+            satrec = twoline2rv(line1, line2, wgs72)
+
+            # Creating a mapping of attribute names to their respective values
+            attributes = {
+                'satellite_number': satrec.satnum,
+                'name': name,
+                'classification': satrec.classification,
+                'international_designator': satrec.intldesg,
+                'epoch_year': satrec.epochyr,
+                'epoch_day': satrec.epochdays,
+                'first_time_derivative': satrec.ndot,
+                'second_time_derivative': satrec.nddot,
+                'bstar_drag_term': satrec.bstar,
+                'ephemeris_type': satrec.ephtype,
+                'element_number': satrec.elnum,
+                'inclination': satrec.inclo,
+                'right_ascension': satrec.nodeo,
+                'eccentricity': satrec.ecco,
+                'argument_of_perigee': satrec.argpo,
+                'mean_anomaly': satrec.mo,
+                'mean_motion': satrec.no_kozai,
+                'revolution_number': satrec.revnum
+            }
+            return TLE(**attributes)
+        except Exception as e:
+            print(f"Error parsing TLE: {str(e)}")
+            return None
     
     @staticmethod
     def tles_from_file(file_path: str):
@@ -79,7 +90,9 @@ class TLE(Base):
                     name = lines[i].strip()
                     line1 = lines[i+1].strip()
                     line2 = lines[i+2].strip()
-                    tles.append(TLE.from_string(f"{name}\n{line1}\n{line2}"))
+                    tle = TLE.from_string(f"{name}\n{line1}\n{line2}")
+                    if tle is not None:
+                        tles.append(tle)
                 except (IndexError, ValueError) as e:
                     print(f"Error processing TLE starting at line {i}: {str(e)}")
         return tles
@@ -112,7 +125,7 @@ class TLE(Base):
         append("{} ".format(self.ephemeris_type) + str(self.element_number).rjust(4, " "))
 
         line1 = ''.join(pieces)
-        line1 += str(compute_checksum(line1))
+        line1 += str(self.compute_checksum(line1))
 
         # --------------------- Start generating line 2 ---------------------
         pieces = ["2 "]
@@ -131,24 +144,99 @@ class TLE(Base):
         append(str(self.revolution_number).rjust(5))
 
         line2 = ''.join(pieces)
-        line2 += str(compute_checksum(line2))
+        line2 += str(self.compute_checksum(line2))
 
         if as_string:
             return f"{self.name}\n{line1}\n{line2}"
         else:
             return self.name, line1, line2
 
+    def to_dict(self):
+        """Converts the TLE to a dictionary."""
+        return {key: value for key, value in vars(self).items() if hasattr(self.__class__, key)}
+    
+    # @jit
     def compute_checksum(self, line):
-        """Compute the TLE checksum for the given line."""
-        return sum((int(c) if c.isdigit() else c == '-') for c in line[0:68]) % 10
+        """Compute the TLE checksum for the given line.
+        Adapted from sgp4's exporter.py but a bit faster"""
+        checksum = 0
+        for c in line[0:68]:
+            if c.isdigit():
+                checksum += int(c)
+            elif c == '-':
+                checksum += 1
+        return checksum % 10
         
 
     def __repr__(self):
         return f"<TLE(name='{self.name}', satellite_number='{self.satellite_number}')>"
 
+# Database operations
+def get_engine(db_path=DB_PATH):
+    return create_engine(db_path)
 
-def setup_database(db_path):
+def build_database(db_path=DB_PATH):
     engine = create_engine(db_path)
     Base.metadata.create_all(engine)
+    return engine
+
+def get_session(engine):
     Session = sessionmaker(bind=engine)
     return Session()
+
+
+
+@contextmanager
+def db_session(engine):
+    """
+    Context manager to provide a database session.
+    
+    Args:
+        engine (sqlalchemy.engine.base.Engine): The database engine.
+    
+    Yields:
+        sqlalchemy.orm.Session: The database session.
+    """
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    
+    try:
+        yield session
+    except Exception as e:
+        session.rollback()
+        raise e
+    finally:
+        session.close()
+
+
+
+def with_session(func):
+    """Decorator to provide a database session to a function if it does not exist.
+        Passing a session is faster than creating a new one, but it is tedious to pass it every time."""
+    @wraps(func)
+    def wrapper(*args, session=None, **kwargs):
+        if session is None:
+            with db_session(engine) as session:
+                return func(*args, session=session, **kwargs)
+        else:
+            return func(*args, session=session, **kwargs)
+    return wrapper
+
+class SQLiteConnectionManager:
+    def __init__(self):
+        self.database_path = DB_SQLITE_PATH
+        self.conn = None
+        self.connection_count = 0
+
+    def __enter__(self):
+        self.conn = sqlite3.connect(self.database_path)
+        self.connection_count += 1
+        return self.conn
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.conn:
+            self.conn.close()
+            self.connection_count -= 1
+
+if __name__ == "__main__":
+    build_database()

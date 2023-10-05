@@ -23,6 +23,9 @@ else
     echo "To manually perform this action, run: sudo apt install make"
 fi
 
-# Add invoke to conda
-conda install invoke
-conda uopdate invoke
+# Adds conda-forge channel
+if ! conda config --show channels | grep -q "conda-forge"; then
+    echo "Adding conda-forge channel"
+    conda config --add channels conda-forge
+fi
+
