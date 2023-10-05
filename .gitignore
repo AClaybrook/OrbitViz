@@ -11,6 +11,7 @@
 # Data
 *.bsp
 backend/data/tles/*
+*.zip
 
 # Databsae
 *.db
@@ -19,5 +20,5 @@ backend/data/tles/*
 # pytest
 .pytest_cache
 
-# docs for now
+# ignore docs for now
 docs
