@@ -61,10 +61,7 @@ def pre_fetch_existing_data(new_tles, session=None):
         .all()
     )
 
-    return {
-        'satellites': {sat.satellite_number: sat for sat in existing_satellites},
-        'latest_tles': {tle.primary_key: tle for tle in existing_latest_tles},
-    }
+    return {sat.satellite_number: sat for sat in existing_satellites}, {tle.satellite_number: tle for tle in existing_latest_tles}
 
 
 @with_session
@@ -80,28 +77,24 @@ def insert_tle(tle_source, session=None, group=None):
     
     if tles_to_add:
         # Prefetch existing data
-        existing_sats, existing_lateest_tles = pre_fetch_existing_data(tles_to_add, session=session)
+        existing_sats, existing_latest_tles = pre_fetch_existing_data(tles_to_add, session=session)
         
         # Process the new TLE data
         for tle in tles_to_add:
-            sat_num = tle.primary_key
+            sat_num = tle.satellite_number
             
             # Efficiently check for existing satellite and latest TLE
             satellite = existing_sats.get(sat_num)
-            latest_tle = existing_lateest_tles.get(sat_num)
+            latest_tle = existing_latest_tles.get(sat_num)
             
             # Ensure Satellite exists
             if satellite is None:
-                satellite = Satellite(primary_key=sat_num, name=tle.name)
+                satellite = Satellite(satellite_number=sat_num, name=tle.name)
                 session.add(satellite)
                 existing_sats[sat_num] = satellite
             
             # Always add to HistoricalTLEs
-            #TODO: THIS is wrong
-            historical_tle = HistoricalTLE(
-                line1=tle.line1, line2=tle.line2, timestamp=tle.timestamp,
-                satellite=satellite  # Associate with Satellite
-            )
+            historical_tle = HistoricalTLE.from_tle(tle)
             session.add(historical_tle)
             
             # Update LatestTLE if newer or not existing
@@ -112,12 +105,9 @@ def insert_tle(tle_source, session=None, group=None):
                     latest_tle.line1, latest_tle.line2, latest_tle.timestamp = tle.line1, tle.line2, tle.timestamp
                 else:
                     # Option 2: Insert new
-                    new_latest_tle = LatestTLE(
-                        line1=tle.line1, line2=tle.line2, timestamp=tle.timestamp,
-                        satellite=satellite  # Associate with Satellite
-                    )
+                    new_latest_tle = LatestTLE.from_tle(tle)
                     session.add(new_latest_tle)
-                    existing_lateest_tles[sat_num] = new_latest_tle
+                    existing_latest_tles[sat_num] = new_latest_tle
                     
             # Optionally, associate with a group
             # TODO: make a group function

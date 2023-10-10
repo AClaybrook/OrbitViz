@@ -1,7 +1,7 @@
 import os
 
 # Project Directory Configuration
-BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+BASE_DIR = os.path.dirname(__file__)
 
 def setup_directories(dir_names):
     """Defines the directory paths for the project.

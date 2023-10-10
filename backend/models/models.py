@@ -25,28 +25,31 @@ class TLE(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     # Three Line TLE Specs: https://celestrak.org/NORAD/documentation/tle-fmt.php
     # TLE Line 0
-    name = Column(String(50), nullable=True)
+    name = Column(String(50))
     # TLE Line 1
-    @declared_attr
-    def satellite_number(cls):
-        return Column(Integer) # Norad ID
-    classification = Column(String(1), nullable=True)
-    international_designator = Column(String(8), nullable=True)
+    # @declared_attr
+    # def satellite_number(cls):
+    #     return Column(Integer) # Norad ID
+    satellite_number = Column(Integer) # Norad ID
+    classification = Column(String(1))
+    international_designator = Column(String(8))
     epoch_year = Column(Integer)
     epoch_day = Column(Float)
-    mean_motion_dot = Column(Float, nullable=True)
-    mean_motion_ddot = Column(Float, nullable=True)
-    bstar = Column(Float, nullable=True)
-    ephemeris_type = Column(Integer, nullable=True)
-    element_number = Column(Integer, nullable=True)
+    mean_motion_dot = Column(Float)
+    mean_motion_ddot = Column(Float)
+    bstar = Column(Float)
+    ephemeris_type = Column(Integer)
+    element_number = Column(Integer)
     # TLE Line 2
-    inclination = Column(Float, nullable=True)
-    right_ascension = Column(Float, nullable=True)
-    eccentricity = Column(Float, nullable=True)
-    argument_of_perigee = Column(Float, nullable=True)
-    mean_anomaly = Column(Float, nullable=True)
-    mean_motion = Column(Float, nullable=True)
-    revolution_number = Column(Integer, nullable=True)
+    inclination = Column(Float)
+    right_ascension = Column(Float)
+    eccentricity = Column(Float)
+    argument_of_perigee = Column(Float)
+    mean_anomaly = Column(Float)
+    mean_motion = Column(Float)
+    revolution_number = Column(Integer)
+    # Additional fields
+    epoch = Column(DateTime)
     
     # Factory methods
     @staticmethod
@@ -85,7 +88,8 @@ class TLE(Base):
                 'argument_of_perigee': satrec.argpo,
                 'mean_anomaly': satrec.mo,
                 'mean_motion': satrec.no_kozai,
-                'revolution_number': satrec.revnum
+                'revolution_number': satrec.revnum,
+                'epoch': satrec.epoch
             }
             return TLE(**attributes)
         except Exception as e:
@@ -127,8 +131,6 @@ class TLE(Base):
                 print(f"Error processing TLE starting at line {i}: {str(e)}")
         return tles
     
-
-
     @staticmethod
     def _parse_json_file(file):
         tles = []
@@ -182,7 +184,6 @@ class TLE(Base):
         #         print(f"Error processing JSON object: {entry} with {str(e)}")
 
         # return tles
-
 
     @staticmethod
     def _parse_csv_file(file):
@@ -300,9 +301,7 @@ class Satellite(Base):
         back_populates="satellite", 
         foreign_keys=[LatestTLE.satellite_number]
     )
-
     historical_tles = relationship("HistoricalTLE", back_populates="satellite",  foreign_keys=[HistoricalTLE.satellite_number])
-
     groups = relationship("Group", secondary="satellite_group_association", back_populates="satellites")
 
     # TODO: Add more fields from https://celestrak.org/satcat/satcat-format.php
