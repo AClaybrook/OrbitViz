@@ -1,7 +1,7 @@
 from flask import Flask, request
 from sqlalchemy import create_engine, and_
-from backend.data.models import TLE
-from data.models import db_session, get_engine
+from backend.models.models import TLE
+from backend.models.models import db_session, get_engine
 
 app = Flask(__name__)
 

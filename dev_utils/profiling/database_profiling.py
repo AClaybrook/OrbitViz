@@ -1,6 +1,6 @@
 import os
-from database_operations import insert_tle, query_all_tle, query_tle
-from celestrak import GROUPS, get_tle_source
+from backend.services.database.database_operations import insert_tle, query_all_tle, query_tle
+from backend.services.data_fetching.celestrak import GROUPS, get_tle_source
 
 # Example Inserting TLEs from files
 for g in GROUPS:

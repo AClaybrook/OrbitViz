@@ -10,7 +10,6 @@
 
 # Data
 *.bsp
-backend/data/tles/*
 *.zip
 
 # Databsae

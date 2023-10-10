@@ -2,7 +2,7 @@ from skyfield.api import Loader
 from skyfield.api import wgs84
 from skyfield.api import EarthSatellite
 from typing import List
-from data.celestrak import get_tle_source
+from backend.services.data_fetching.celestrak import get_tle_source
 from skyfield.elementslib import osculating_elements_of
 from data import TLE_DIR
 

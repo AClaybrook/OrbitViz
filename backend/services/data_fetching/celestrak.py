@@ -1,9 +1,9 @@
 import os
 import requests
-from __init__ import DATA_DIR
-from database_operations import insert_tle
-from models import get_engine, db_session
+from config import DIRS
+from backend.services.database.database_operations import insert_tle
 
+DATA_DIR = DIRS["data"]
 
 CELESTRAK_URL = "https://celestrak.org/NORAD/elements/gp.php?GROUP={}&FORMAT=tle"
 
@@ -36,13 +36,14 @@ def get_tles(groups=GROUPS, update=True, add_to_database=True):
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(response.text)
             print(f"Succeeded: {group}")
+            if add_to_database:
+                print("\tAdding to database...")
+                insert_tle(filepath, group=group)
+                print("\tDone adding to database.")
         else:
             print(f"Failed: {group}")
 
-        if add_to_database:
-            print("\tAddings to database...")
-            insert_tle(filepath)
-            print("\tDone adding to database.")
+
 
 if __name__ == "__main__":
     get_tles(update=True, add_to_database=True)
