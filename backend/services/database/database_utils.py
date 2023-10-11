@@ -10,19 +10,19 @@ from functools import wraps
 import sqlite3
 import os
 from config import DB_URI, DB_PATH
-from backend.models.models import Base, engine
+from backend.models.models import Base
 
+# Initialize Database
 def get_engine(db_uri=DB_URI):
     return create_engine(db_uri)
 
 def initialize_database(db_uri=DB_URI):
-    engine = create_engine(db_uri, echo=True)
+    engine = get_engine()
     Base.metadata.create_all(engine)
-    print(db_uri)
-    print(DB_URI)
     return engine
 
-initialize_database()
+engine = initialize_database()
+
 def get_session(engine):
     Session = sessionmaker(bind=engine)
     return Session()
@@ -38,8 +38,7 @@ def db_session(engine):
     Yields:
         sqlalchemy.orm.Session: The database session.
     """
-    Session = sessionmaker(bind=engine)
-    session = Session()
+    session = get_session(engine)
     
     try:
         yield session
@@ -60,20 +59,3 @@ def with_session(func):
         else:
             return func(*args, session=session, **kwargs)
     return wrapper
-
-
-class SQLiteConnectionManager:
-    def __init__(self):
-        self.database_path = DB_PATH
-        self.conn = None
-        self.connection_count = 0
-
-    def __enter__(self):
-        self.conn = sqlite3.connect(self.database_path)
-        self.connection_count += 1
-        return self.conn
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        if self.conn:
-            self.conn.close()
-            self.connection_count -= 1

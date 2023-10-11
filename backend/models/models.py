@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, Table, PrimaryKeyConstraint, and_
+from sqlalchemy import create_engine, Column, Integer, String, Float, Table, PrimaryKeyConstraint, and_, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy.orm import sessionmaker, foreign
 from sgp4.io import twoline2rv
@@ -10,27 +10,23 @@ from functools import wraps
 import sqlite3
 import os
 from config import DB_URI, DB_PATH
-from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey, DateTime, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 import json
 from datetime import datetime
 
-engine = create_engine(DB_URI)
 
 Base = declarative_base()
 
 class TLE(Base):
-    __abstract__ = True
+    __tablename__ = "tles"
     id = Column(Integer, primary_key=True, autoincrement=True)
     # Three Line TLE Specs: https://celestrak.org/NORAD/documentation/tle-fmt.php
     # TLE Line 0
     name = Column(String(50))
     # TLE Line 1
-    # @declared_attr
-    # def satellite_number(cls):
-    #     return Column(Integer) # Norad ID
-    satellite_number = Column(Integer) # Norad ID
+    satellite_number = Column(Integer, ForeignKey("satellites.satellite_number")) # Norad ID
     classification = Column(String(1))
     international_designator = Column(String(8))
     epoch_year = Column(Integer)
@@ -50,7 +46,11 @@ class TLE(Base):
     revolution_number = Column(Integer)
     # Additional fields
     epoch = Column(DateTime)
-    
+
+    # Relationships
+    satellite = relationship("Satellite", back_populates="tles", foreign_keys=[satellite_number])
+
+    __table_args__ = (Index('idx_satellite_epoch', 'satellite_number', 'epoch'),)
     # Factory methods
     @staticmethod
     def from_string(tle_string):
@@ -268,58 +268,35 @@ class TLE(Base):
     def __str__(self):
         return self.to_tle(as_string=True)
 
-
-class HistoricalTLE(TLE):
-    __tablename__ = 'historical_tles'
-    satellite_number = Column(Integer, ForeignKey('satellites.satellite_number'))
-    satellite = relationship("Satellite", back_populates="historical_tles", foreign_keys=[satellite_number])
-
-    @staticmethod
-    def from_tle(tle: TLE):
-        """Creates a HistoricalTLE"""
-        return HistoricalTLE(**tle.to_dict())
-    
-class LatestTLE(TLE):
-    __tablename__ = 'latest_tles'
-    satellite_number = Column(Integer, ForeignKey('satellites.satellite_number'), unique=True)
-    satellite = relationship("Satellite", back_populates="latest_tle",foreign_keys=[satellite_number])
-    
-    @staticmethod
-    def from_tle(tle: TLE):
-        """Creates a LatestTLE"""
-        return LatestTLE(**tle.to_dict())
-
 class Satellite(Base):
     __tablename__ = 'satellites'
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     satellite_number = Column(Integer, unique=True)
     name = Column(String)
+    latest_tle_id = Column(Integer, ForeignKey('tles.id'), unique=True)
     # Relationships
-    latest_tle = relationship(
-        "LatestTLE", 
-        uselist=False, 
-        back_populates="satellite", 
-        foreign_keys=[LatestTLE.satellite_number]
-    )
-    historical_tles = relationship("HistoricalTLE", back_populates="satellite",  foreign_keys=[HistoricalTLE.satellite_number])
+    latest_tle = relationship("TLE", foreign_keys=[latest_tle_id], primaryjoin="Satellite.latest_tle_id == TLE.id", uselist=False, remote_side=[TLE.id])
+    tles = relationship("TLE", back_populates="satellite",  foreign_keys=[TLE.satellite_number], primaryjoin="Satellite.satellite_number == TLE.satellite_number")
     groups = relationship("Group", secondary="satellite_group_association", back_populates="satellites")
 
+    # Unique constraint to enforce one-to-one relationship
+    __table_args__ = (UniqueConstraint('latest_tle_id'),)
     # TODO: Add more fields from https://celestrak.org/satcat/satcat-format.php
     # Things like launch date, decay date, object type, etc.
     # Possibly add a "category" field to group satellites by type (e.g. weather, communication, etc.)
 
 class Group(Base):
     __tablename__ = 'groups'
-    id = Column(Integer, primary_key=True)
-    name = Column(String)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, unique=True)
     # Relationships
     satellites = relationship("Satellite", secondary="satellite_group_association", back_populates="groups")
 
 # Add a table for many-to-many relationship between satellites and groups
 satellite_group_association = Table(
     'satellite_group_association', Base.metadata,
-    Column('satellite_id', Integer, ForeignKey('satellites.satellite_number')), 
-    Column('group_id', Integer, ForeignKey('groups.id'))
+    Column('satellite_number', Integer, ForeignKey('satellites.satellite_number'), primary_key=True),
+    Column('group_name', String, ForeignKey('groups.name'), primary_key=True)
 )
 
 
