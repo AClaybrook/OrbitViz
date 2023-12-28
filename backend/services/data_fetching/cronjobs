@@ -1,0 +1,21 @@
+# Update paths as needed
+BASE_DIR=/home/aclaybrook/GithubOnWSL/OrbitViz
+PYTHON_VENV=$BASE_DIR/.venv/bin/python
+LOG_FILE=$BASE_DIR/data/logs/celestrak.log
+SCRIPT=$BASE_DIR/backend/services/data_fetching/celestrak.py
+
+# Command to append to crontab
+# (crontab -l ; cat /home/aclaybrook/GithubOnWSL/OrbitViz/backend/services/data_fetching/cronjobs) | crontab -
+
+# ┌───────────── minute (0 - 59)
+# │ ┌───────────── hour (0 - 23)
+# │ │ ┌───────────── day of the month (1 - 31)
+# │ │ │ ┌───────────── month (1 - 12)
+# │ │ │ │ ┌───────────── day of the week (0 - 6) (Sunday to Saturday;
+# │ │ │ │ │                                   7 is also Sunday on some systems)
+# │ │ │ │ │
+# │ │ │ │ │
+# * * * * * <command to execute>
+# Run celetrak.py every hour
+*/5 * * * * cd $BASE_DIR && $PYTHON_VENV $SCRIPT >> $LOG_FILE 2>&1
+# Leave a blank line at the end of this file
